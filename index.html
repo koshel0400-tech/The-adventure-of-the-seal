@@ -1,4 +1,4 @@
-<meta name='viewport' content='width=device-width, initial-scale=1'/><!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
@@ -8,19 +8,29 @@
     <style>
         body { margin: 0; overflow: hidden; background: #001e3c; touch-action: none; font-family: 'Arial Black', sans-serif; }
         canvas { display: block; }
-        
+
         #ui, #shop-ui, #game-over {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             pointer-events: none; color: white; z-index: 10;
         }
         .stats-bar { position: absolute; top: 20px; left: 20px; display: flex; flex-direction: column; gap: 8px; }
-        .stat { 
+        .stat {
             background: linear-gradient(135deg, rgba(0, 40, 80, 0.95) 0%, rgba(0, 10, 20, 0.9) 100%);
-            padding: 12px 18px; 
+            padding: 12px 18px;
             border-radius: 16px; border: 3px solid #00d2ff; font-weight: bold; font-size: 20px;
             box-shadow: 0 0 15px rgba(0,210,255,0.5);
             backdrop-filter: blur(5px);
         }
+        #boost-indicator {
+            display: none;
+            color: #ffeb3b;
+            font-size: 24px;
+            text-shadow: 0 0 10px #ff9800;
+            margin-top: 5px;
+            animation: flash 0.5s infinite;
+        }
+        @keyframes flash { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+
         #btn-shop {
             position: absolute; top: 20px; right: 20px; pointer-events: auto;
             background: linear-gradient(#FFD700, #FFA500); color: #000; padding: 15px 30px;
@@ -32,23 +42,45 @@
             display: none; pointer-events: auto;
             background: linear-gradient(180deg, rgba(0, 10, 25, 0.99) 0%, rgba(0, 5, 10, 0.98) 100%);
             flex-direction: column; align-items: center;
+            overflow: hidden; /* Основной контейнер не крутится */
         }
-        .shop-header { padding: 40px 20px 10px; text-align: center; }
-        .shop-grid { 
-            flex: 1; width: 100%; overflow-y: auto; display: grid; 
-            grid-template-columns: 1fr 1fr; gap: 15px; padding: 10px 20px 120px;
-            box-sizing: border-box; -webkit-overflow-scrolling: touch;
+        .shop-header { padding: 40px 20px 10px; text-align: center; flex-shrink: 0; }
+        
+        /* ИСПРАВЛЕННАЯ ПРОКРУТКА */
+        .shop-grid {
+            flex: 1; 
+            width: 100%; 
+            overflow-y: auto; /* Разрешаем вертикальную прокрутку */
+            pointer-events: auto; /* Разрешаем касания */
+            display: grid; 
+            grid-template-columns: 1fr 1fr; 
+            gap: 15px; 
+            padding: 10px 20px 140px; /* Отступ снизу больше для кнопки выхода */
+            box-sizing: border-box; 
+            -webkit-overflow-scrolling: touch; /* Плавный скролл на iOS */
+            touch-action: pan-y; /* Разрешаем только вертикальный свайп */
         }
-        .skin-card { 
-            background: rgba(255,255,255,0.05); padding: 20px; border-radius: 28px; 
-            text-align: center; border: 4px solid rgba(255,255,255,0.1); 
+        
+        .skin-card {
+            background: rgba(255,255,255,0.05); padding: 20px; border-radius: 28px;
+            text-align: center; border: 4px solid rgba(255,255,255,0.1);
             transition: 0.3s;
         }
         .skin-card.active { border-color: #00d2ff; background: rgba(0, 210, 255, 0.1); }
-        .skin-btn { margin-top: 10px; padding: 12px; border-radius: 15px; border: none; width: 100%; font-weight: bold; background: #FFD700; color: #000; font-size: 14px; }
+        .skin-btn { margin-top: 10px; padding: 12px; border-radius: 15px; border: none; width: 100%; font-weight: bold; background: #FFD700; color: #000; font-size: 14px; cursor: pointer; }
+        .ability-text { font-size: 11px; color: #00d2ff; margin-top: 5px; min-height: 35px; pointer-events: none; }
+
+        .extra-lives-btn {
+            background: #ff4444; color: white; padding: 15px 30px; border-radius: 20px;
+            margin-bottom: 20px; border: 3px solid white; font-weight: bold; cursor: pointer;
+            flex-shrink: 0; pointer-events: auto;
+        }
+
         .close-shop-btn {
             position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
-            background: #fff; color: #000; padding: 15px 60px; border-radius: 30px; font-weight: bold; font-size: 20px; box-shadow: 0 5px 15px rgba(255,255,255,0.2);
+            background: #fff; color: #000; padding: 15px 60px; border-radius: 30px; font-weight: bold; font-size: 20px; 
+            box-shadow: 0 5px 15px rgba(255,255,255,0.2); pointer-events: auto;
+            z-index: 20;
         }
 
         #game-over {
@@ -65,6 +97,7 @@
         <div id="score-display" class="stat">🐟 0</div>
         <div id="best-display" class="stat">🏆 ТОП: 0</div>
         <div id="lives-display" class="stat">❤️ 3</div>
+        <div id="boost-indicator">BOOST! ⚡</div>
     </div>
     <button id="btn-shop">МАГАЗИН</button>
 </div>
@@ -73,6 +106,9 @@
     <div class="shop-header">
         <h1 style="color: #FFD700; margin: 0; font-size: 36px;">МАГАЗИН</h1>
         <div id="shop-balance" style="font-size: 20px; opacity: 0.8;">Рыбки: 0</div>
+    </div>
+    <div id="life-buy-section" style="padding: 10px; flex-shrink: 0;">
+        <button class="extra-lives-btn" onclick="buyLife()">+1 ❤️ (350 🐟)</button>
     </div>
     <div class="shop-grid" id="shop-grid"></div>
     <button class="close-shop-btn" onclick="closeShop()">ВЫХОД</button>
@@ -94,28 +130,36 @@ let totalFish = parseInt(localStorage.getItem('totalFish')) || 0;
 let highScore = parseInt(localStorage.getItem('highScore')) || 0;
 let currentSkin = localStorage.getItem('currentSkin') || 'classic';
 let ownedSkins = JSON.parse(localStorage.getItem('ownedSkins')) || ['classic'];
+let purchasedExtraLives = parseInt(localStorage.getItem('extraLives')) || 0;
 
 const skins = {
-    classic: { name: "Серый", body: "#9e9e9e", head: "#9e9e9e", dark: "#606060", text: "", price: 0 },
-    ice: { name: "Снежок", body: "#f0faff", head: "#f0faff", dark: "#a0c0d0", text: "", price: 10 },
-    imzul: { name: "Имзюлень", body: "#8b4513", head: "#ffd700", dark: "#5d2e0d", text: "", price: 50 }, // ТЕКСТ УБРАН
-    egor: { name: "Егор", body: "#8b4513", head: "#8b4513", dark: "#5d2e0d", text: "Егор", price: 200 },
-    bogdan: { name: "Богдан", body: "#333", head: "#333", dark: "#111", text: "Богдан", price: 200 }
+    classic: { name: "Серый", body: "#9e9e9e", head: "#9e9e9e", dark: "#606060", text: "", price: 0, ability: "Нет" },
+    ice: { name: "Снежок", body: "#f0faff", head: "#f0faff", dark: "#a0c0d0", text: "", price: 10, ability: "Нет" },
+    imzul: { name: "Имзюлень", body: "#8b4513", head: "#ffd700", dark: "#5d2e0d", text: "", price: 50, ability: "Магнит (радиус +20%)" },
+    egor: { name: "Егор", body: "#8b4513", head: "#8b4513", dark: "#5d2e0d", text: "Егор", price: 200, ability: "Броня (шанс 10% на блок)" },
+    bogdan: { name: "Богдан", body: "#333", head: "#333", dark: "#111", text: "Богдан", price: 200, ability: "Скорость (+15% маневр)" },
+    neon: { name: "Неон", body: "#ff00ff", head: "#00ffff", dark: "#333", text: "Neon", price: 500, ability: "Сияние (рыбки чаще)" },
+    lava: { name: "Лава", body: "#ff4500", head: "#ff8c00", dark: "#800000", text: "Lava", price: 1000, ability: "Жар (враги медленнее)" },
+    cosmo: { name: "Космос", body: "#4b0082", head: "#9370db", dark: "#000033", text: "Stars", price: 2500, ability: "Телепорт (быстрота)" },
+    diamond: { name: "Алмаз", body: "#b9f2ff", head: "#e0ffff", dark: "#70d1e8", text: "💎", price: 5000, ability: "Удача (х2 рыбки)" },
+    god: { name: "Бог Морей", body: "#00d2ff", head: "#ffffff", dark: "#008080", text: "GOD", price: 10000, ability: "Бессмертие (30% щит)" }
 };
 
-let width, height, score = 0, lives = 3;
+let width, height, score = 0, lives = 3 + purchasedExtraLives;
 let isGameOver = false, isShopOpen = false, isFalling = false;
 let seal = { x: 0, y: 0, targetX: 0, animTimer: 0, angle: 0, dmg: 0 };
 let objects = [];
 let particles = [];
+let boostActive = false;
+let boostTimer = 0;
+let lastScoreForBoost = 0;
 
 const Sfx = {
     ctx: null,
-    init() { 
+    init() {
         if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
         if (this.ctx.state === 'suspended') this.ctx.resume();
     },
-    // ПРИЯТНЫЙ ЗВУК РЫБКИ
     playFish() {
         this.init();
         let osc = this.ctx.createOscillator();
@@ -128,7 +172,6 @@ const Sfx = {
         osc.connect(g); g.connect(this.ctx.destination);
         osc.start(); osc.stop(this.ctx.currentTime + 0.1);
     },
-    // МЯГКИЙ ЗВУК УДАРА
     playHit() {
         this.init();
         let osc = this.ctx.createOscillator();
@@ -140,6 +183,18 @@ const Sfx = {
         g.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.2);
         osc.connect(g); g.connect(this.ctx.destination);
         osc.start(); osc.stop(this.ctx.currentTime + 0.2);
+    },
+    playBoost() {
+        this.init();
+        let osc = this.ctx.createOscillator();
+        let g = this.ctx.createGain();
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(200, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(1200, this.ctx.currentTime + 0.5);
+        g.gain.setValueAtTime(0.1, this.ctx.currentTime);
+        g.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.5);
+        osc.connect(g); g.connect(this.ctx.destination);
+        osc.start(); osc.stop(this.ctx.currentTime + 0.5);
     }
 };
 
@@ -151,8 +206,17 @@ function resize() {
     document.getElementById('best-display').innerText = `🏆 ТОП: ${highScore}`;
 }
 window.addEventListener('resize', resize);
-window.addEventListener('touchstart', (e) => { Sfx.init(); if(!isShopOpen) seal.targetX = e.touches[0].clientX; });
-window.addEventListener('touchmove', (e) => { e.preventDefault(); if(!isShopOpen) seal.targetX = e.touches[0].clientX; }, {passive:false});
+window.addEventListener('touchstart', (e) => { 
+    Sfx.init(); 
+    if(!isShopOpen) seal.targetX = e.touches[0].clientX; 
+});
+window.addEventListener('touchmove', (e) => { 
+    // Блокируем скролл только вне магазина
+    if(!isShopOpen) {
+        e.preventDefault(); 
+        seal.targetX = e.touches[0].clientX; 
+    }
+}, {passive:false});
 resize();
 
 function spawnBubble(x, y) {
@@ -162,18 +226,35 @@ function spawnBubble(x, y) {
 }
 
 function resetGame() {
-    score = 0; lives = 3; isGameOver = false; isFalling = false; objects = []; particles = [];
+    score = 0; lives = 3 + purchasedExtraLives; isGameOver = false; isFalling = false; objects = []; particles = [];
+    boostActive = false; boostTimer = 0; lastScoreForBoost = 0;
     seal.y = height - 130; seal.angle = 0; seal.dmg = 0;
     document.getElementById('game-over').style.display = 'none';
+    document.getElementById('boost-indicator').style.display = 'none';
     document.getElementById('score-display').innerText = `🐟 0`;
-    document.getElementById('lives-display').innerText = `❤️ 3`;
+    document.getElementById('lives-display').innerText = `❤️ ${lives}`;
 }
 
 function spawn() {
     if (isGameOver || isShopOpen) { setTimeout(spawn, 500); return; }
-    const isOrca = Math.random() < 0.35;
-    objects.push({ x: Math.random() * (width - 80) + 40, y: -100, type: isOrca ? 'orca' : 'fish', speed: isOrca ? 4.5+(score*0.05) : 4 });
-    setTimeout(spawn, Math.max(400, 1000 - score * 10));
+    let chanceOrca = boostActive ? 0.1 : 0.35;
+    const isOrca = Math.random() < chanceOrca;
+    objects.push({ x: Math.random() * (width - 80) + 40, y: -100, type: isOrca ? 'orca' : 'fish', speed: isOrca ? 4.5+(score*0.05) : 4, rot: Math.random() * Math.PI * 2 });
+    let spawnDelay = boostActive ? 300 : Math.max(400, 1000 - score * 10);
+    setTimeout(spawn, spawnDelay);
+}
+
+function buyLife() {
+    if (purchasedExtraLives < 10) {
+        if (totalFish >= 350) {
+            totalFish -= 350; purchasedExtraLives++;
+            localStorage.setItem('totalFish', totalFish);
+            localStorage.setItem('extraLives', purchasedExtraLives);
+            lives = 3 + purchasedExtraLives;
+            document.getElementById('lives-display').innerText = `❤️ ${lives}`;
+            updateShopUI();
+        }
+    }
 }
 
 function drawSeal() {
@@ -181,47 +262,20 @@ function drawSeal() {
     ctx.save();
     ctx.translate(seal.x, seal.y);
     ctx.rotate(seal.angle);
-
     let bodyCol = seal.dmg > 0 ? "#ff0000" : s.body;
     let headCol = seal.dmg > 0 ? "#ff0000" : s.head;
     let darkCol = s.dark;
     let swim = Math.sin(seal.animTimer * 2.5);
-
-    // Хвост
-    ctx.fillStyle = darkCol;
-    ctx.beginPath(); ctx.moveTo(-40, swim*4); ctx.bezierCurveTo(-65,-30+swim*10,-85,-15,-80,0); ctx.bezierCurveTo(-85,15,-65,30+swim*10,-40,swim*4); ctx.fill();
-
-    // ТЕЛО
-    ctx.fillStyle = bodyCol;
-    ctx.beginPath(); ctx.ellipse(0, 0, 62, 35, 0, 0, Math.PI * 2); ctx.fill();
-
-    // ТЕКСТ (ТОЛЬКО ДЛЯ ТЕХ, У КОГО ОН ЕСТЬ)
-    if (s.text) {
-        ctx.fillStyle = "white"; ctx.font = "bold 15px Arial"; ctx.textAlign = "center";
-        ctx.fillText(s.text, 0, 6);
-    }
-
-    // Ласта
-    ctx.save(); ctx.translate(-5, 15); ctx.rotate(swim*0.5); ctx.fillStyle = darkCol;
-    ctx.beginPath(); ctx.ellipse(0, 0, 30, 16, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
-
-    // ГОЛОВА
-    ctx.fillStyle = headCol;
-    ctx.beginPath(); ctx.arc(52, -15, 30, 0, Math.PI * 2); ctx.fill();
-
-    // МОРДОЧКА (БЕЗ УСИКОВ)
-    ctx.save();
-    ctx.translate(52, -15);
-    
-    // Глаза
+    ctx.fillStyle = darkCol; ctx.beginPath(); ctx.moveTo(-40, swim*4); ctx.bezierCurveTo(-65,-30+swim*10,-85,-15,-80,0); ctx.bezierCurveTo(-85,15,-65,30+swim*10,-40,swim*4); ctx.fill();
+    ctx.fillStyle = bodyCol; ctx.beginPath(); ctx.ellipse(0, 0, 62, 35, 0, 0, Math.PI * 2); ctx.fill();
+    if (s.text) { ctx.fillStyle = "white"; ctx.font = "bold 15px Arial"; ctx.textAlign = "center"; ctx.fillText(s.text, 0, 6); }
+    ctx.save(); ctx.translate(-5, 15); ctx.rotate(swim*0.5); ctx.fillStyle = darkCol; ctx.beginPath(); ctx.ellipse(0, 0, 30, 16, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+    ctx.fillStyle = headCol; ctx.beginPath(); ctx.arc(52, -15, 30, 0, Math.PI * 2); ctx.fill();
+    ctx.save(); ctx.translate(52, -15);
     ctx.fillStyle = "white"; ctx.beginPath(); ctx.arc(14, -12, 10, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = "black"; ctx.beginPath(); ctx.arc(17, -12, 5, 0, Math.PI * 2); ctx.fill();
-
-    // НОСИК (Центральный и ровный)
-    ctx.fillStyle = "#000";
-    ctx.beginPath(); ctx.ellipse(26, 6, 9, 6, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#000"; ctx.beginPath(); ctx.ellipse(26, 6, 9, 6, 0, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(28, 4, 2.5, 0, Math.PI * 2); ctx.fill();
-    
     ctx.restore();
     if(seal.dmg > 0) seal.dmg--;
     ctx.restore();
@@ -229,7 +283,9 @@ function drawSeal() {
 
 function update() {
     ctx.clearRect(0, 0, width, height);
-    const g = ctx.createLinearGradient(0,0,0,height); g.addColorStop(0,'#4facfe'); g.addColorStop(1,'#001e3c');
+    const g = ctx.createLinearGradient(0,0,0,height);
+    g.addColorStop(0, boostActive ? '#ff9800' : '#4facfe');
+    g.addColorStop(1, '#001e3c');
     ctx.fillStyle = g; ctx.fillRect(0,0,width,height);
 
     for(let i=particles.length-1; i>=0; i--) {
@@ -240,16 +296,32 @@ function update() {
 
     if (!isGameOver && !isShopOpen) {
         seal.animTimer += 0.08;
-        seal.x += (seal.targetX - seal.x) * 0.15;
+        let lerpFactor = currentSkin === 'bogdan' ? 0.18 : 0.15;
+        if(currentSkin === 'cosmo') lerpFactor = 0.22;
+        seal.x += (seal.targetX - seal.x) * lerpFactor;
         seal.angle = (seal.targetX - seal.x) * 0.005;
 
+        if (score > 0 && score % 20 === 0 && score !== lastScoreForBoost) {
+            boostActive = true; boostTimer = 300; lastScoreForBoost = score; Sfx.playBoost();
+            document.getElementById('boost-indicator').style.display = 'block';
+        }
+        if (boostActive) { boostTimer--; if (boostTimer <= 0) { boostActive = false; document.getElementById('boost-indicator').style.display = 'none'; } }
+
         for (let i = objects.length - 1; i >= 0; i--) {
-            const o = objects[i]; o.y += o.speed;
+            const o = objects[i];
+            let speedMod = 1; if(currentSkin === 'lava' && o.type === 'orca') speedMod = 0.85;
+            o.y += o.speed * speedMod;
             if (o.type === 'fish') {
-                ctx.fillStyle = '#ffcc00'; ctx.beginPath(); ctx.ellipse(o.x, o.y, 22, 13, 0, 0, Math.PI * 2); ctx.fill();
-                ctx.beginPath(); ctx.moveTo(o.x-18, o.y); ctx.lineTo(o.x-35, o.y-15); ctx.lineTo(o.x-35, o.y+15); ctx.fill();
-                if (Math.hypot(o.x - seal.x, o.y - seal.y) < 55) {
-                    score++; totalFish++; Sfx.playFish(); spawnBubble(o.x, o.y);
+                ctx.save(); ctx.translate(o.x, o.y); ctx.rotate(Math.sin(seal.animTimer + o.rot) * 0.2);
+                let fishGrad = ctx.createRadialGradient(0,0,5,0,0,22); fishGrad.addColorStop(0, '#fff3a0'); fishGrad.addColorStop(1, '#ffcc00');
+                ctx.fillStyle = fishGrad; ctx.beginPath(); ctx.ellipse(0, 0, 22, 13, 0, 0, Math.PI * 2); ctx.fill();
+                ctx.strokeStyle = "rgba(255,255,255,0.4)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(8, -5, 10, 0.5, 2); ctx.stroke();
+                ctx.fillStyle = '#ffaa00'; ctx.beginPath(); ctx.moveTo(-18, 0); ctx.lineTo(-35, -15); ctx.lineTo(-35, 15); ctx.fill();
+                ctx.fillStyle = 'black'; ctx.beginPath(); ctx.arc(12, -3, 2, 0, Math.PI*2); ctx.fill(); ctx.restore();
+                let grabRadius = currentSkin === 'imzul' ? 66 : 55;
+                if (Math.hypot(o.x - seal.x, o.y - seal.y) < grabRadius) {
+                    let reward = currentSkin === 'diamond' ? 2 : 1;
+                    score += reward; totalFish += reward; Sfx.playFish(); spawnBubble(o.x, o.y);
                     document.getElementById('score-display').innerText = `🐟 ${score}`;
                     if (score > highScore) { highScore = score; localStorage.setItem('highScore', highScore); document.getElementById('best-display').innerText = `🏆 ТОП: ${highScore}`; }
                     objects.splice(i, 1);
@@ -261,8 +333,11 @@ function update() {
                 ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.ellipse(25, 8, 20, 10, 0, 0, Math.PI * 2); ctx.fill();
                 ctx.restore();
                 if (Math.hypot(o.x - seal.x, o.y - seal.y) < 70) {
-                    lives--; seal.dmg = 30; Sfx.playHit();
-                    document.getElementById('lives-display').innerText = `❤️ ${lives}`;
+                    let armorChance = currentSkin === 'god' ? 0.3 : (currentSkin === 'egor' ? 0.1 : 0);
+                    if(Math.random() < armorChance) { seal.dmg = 15; } else {
+                        lives--; seal.dmg = 30; Sfx.playHit();
+                        document.getElementById('lives-display').innerText = `❤️ ${lives}`;
+                    }
                     objects.splice(i, 1);
                     if (lives <= 0) { isGameOver = true; isFalling = true; localStorage.setItem('totalFish', totalFish); }
                 }
@@ -284,13 +359,18 @@ function updateShopUI() {
     for (let id in skins) {
         const s = skins[id]; const isOwned = ownedSkins.includes(id); const isActive = currentSkin === id;
         const card = document.createElement('div'); card.className = `skin-card ${isActive ? 'active' : ''}`;
-        card.innerHTML = `<div style="width:60px;height:30px;background:${s.body};margin:0 auto;border-radius:15px;border:3px solid ${s.head};"></div><div style="font-weight:bold;margin-top:8px;color:#fff;">${s.name}</div><button class="skin-btn" onclick="buySkin('${id}')">${isActive?'Надето':(isOwned?'Выбрать':s.price+' 🐟')}</button>`;
+        card.innerHTML = `
+            <div style="width:60px;height:30px;background:${s.body};margin:0 auto;border-radius:15px;border:3px solid ${s.head};"></div>
+            <div style="font-weight:bold;margin-top:8px;color:#fff;">${s.name}</div>
+            <div class="ability-text">${s.ability}</div>
+            <button class="skin-btn" onclick="buySkin('${id}')">${isActive?'Надето':(isOwned?'Выбрать':s.price+' 🐟')}</button>
+        `;
         grid.appendChild(card);
     }
 }
 
 window.buySkin = (id) => {
-    if (ownedSkins.includes(id)) { currentSkin = id; } 
+    if (ownedSkins.includes(id)) { currentSkin = id; }
     else if (totalFish >= skins[id].price) { totalFish -= skins[id].price; ownedSkins.push(id); currentSkin = id; }
     localStorage.setItem('totalFish', totalFish); localStorage.setItem('currentSkin', currentSkin); localStorage.setItem('ownedSkins', JSON.stringify(ownedSkins));
     updateShopUI();
