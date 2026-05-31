@@ -86,33 +86,6 @@
             background: rgba(0,0,0,0.95); flex-direction: column; align-items: center; justify-content: center;
         }
         .restart-btn { background: #00d2ff; color: #fff; padding: 20px 60px; border-radius: 30px; border: none; font-weight: bold; font-size: 26px; margin-top: 25px; box-shadow: 0 0 20px rgba(0,210,255,0.6); }
-
-        /* АНИМАЦИЯ ДНЯ РОЖДЕНИЯ */
-        #birthday-event {
-            display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            align-items: center; justify-content: center; flex-direction: column;
-            background: rgba(0,0,0,0.92); pointer-events: none; z-index: 50;
-        }
-        .bday-title { color: #FFD700; font-size: 32px; text-shadow: 0 0 15px #ff9800; margin: 0; text-align: center; padding: 0 20px; }
-        
-        /* Исправленная ширина сцены для отображения всех тюленей */
-        .bday-scene { position: relative; width: 360px; height: 160px; margin-top: 30px; }
-        
-        .bday-friend { position: absolute; transition: 0.5s ease-in-out; }
-        .jumping { animation: bday-jump 0.4s infinite alternate; }
-        @keyframes bday-jump { from { transform: translateY(0); } to { transform: translateY(-25px); } }
-        
-        #bday-bogdan { position: absolute; bottom: 10px; left: 150px; z-index: 5; transition: 0.5s; }
-        #bday-cake { position: absolute; bottom: 10px; left: 220px; font-size: 60px; z-index: 4; }
-        #bday-flame { position: absolute; top: 8px; left: 26px; width: 8px; height: 14px; background: #ffeb3b; border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%; box-shadow: 0 0 10px #ff9800; animation: flicker 0.15s infinite alternate; }
-        
-        /* Исправленные позиции, чтобы все влезли в 360px */
-        #bday-f1 { bottom: 10px; left: 0px; }
-        #bday-f2 { bottom: 60px; left: 75px; }
-        #bday-f3 { bottom: 60px; left: 225px; }
-        #bday-f4 { bottom: 10px; left: 300px; }
-
-        @keyframes flicker { from { transform: scale(1) translateY(0); opacity: 1; } to { transform: scale(1.2) translateY(-2px); opacity: 0.8; } }
     </style>
 </head>
 <body>
@@ -127,28 +100,6 @@
     <button id="btn-shop">МАГАЗИН</button>
 </div>
 
-<div id="birthday-event">
-    <h1 id="bday-title" class="bday-title">С ДНЁМ РОЖДЕНИЯ, БОГДАН!</h1>
-    <div class="bday-scene">
-        <div id="bday-f1" class="bday-friend"><div class="seal-model"><div class="seal-body" style="background:#f0faff"></div><div class="seal-head" style="background:#f0faff"></div></div></div>
-        <div id="bday-f2" class="bday-friend"><div class="seal-model"><div class="seal-body" style="background:#8b4513"></div><div class="seal-head" style="background:#ffd700"></div></div></div>
-        <div id="bday-f3" class="bday-friend"><div class="seal-model"><div class="seal-body" style="background:#ff00ff"></div><div class="seal-head" style="background:#00ffff"></div></div></div>
-        <div id="bday-f4" class="bday-friend"><div class="seal-model"><div class="seal-body" style="background:#00d2ff"></div><div class="seal-head" style="background:#ffffff"></div></div></div>
-        
-        <div id="bday-bogdan">
-            <div class="seal-model">
-                <div class="seal-body" style="background:#333"></div>
-                <div class="seal-head" style="background:#333"></div>
-            </div>
-        </div>
-        
-        <div id="bday-cake">
-            🎂
-            <div id="bday-flame"></div>
-        </div>
-    </div>
-</div>
-
 <div id="shop-ui">
     <div class="shop-header">
         <h1 style="color: #FFD700; margin: 0; font-size: 36px;">МАГАЗИН</h1>
@@ -156,7 +107,6 @@
     </div>
     <div id="life-buy-section" style="padding: 10px; flex-shrink: 0; display: flex; gap: 10px; justify-content: center;">
         <button class="extra-lives-btn" onclick="buyLife()">+1 ❤️ (350 🐟)</button>
-        <button class="extra-lives-btn" style="background: #9c27b0; border-color: #ffeb3b;" onclick="playBdayAnimation()">🎂 Праздник!</button>
     </div>
     <div class="shop-grid" id="shop-grid"></div>
     <button class="close-shop-btn" onclick="closeShop()">ВЫХОД</button>
@@ -181,17 +131,23 @@ let ownedSkins = JSON.parse(localStorage.getItem('ownedSkins')) || ['classic'];
 let purchasedExtraLives = parseInt(localStorage.getItem('extraLives')) || 0;
 let topClicks = 0;
 let lastClickTime = 0;
-let bdayTriggered = false;
-let hasSeenBday = false;
+
+// Счетчик заблокированных ударов для киборга
+let cyborgBlockCounter = 0;
 
 const skins = {
     classic: { name: "Серый", body: "#9e9e9e", head: "#9e9e9e", dark: "#606060", text: "", price: 0, ability: "Нет" },
     ice: { name: "Снежок", body: "#f0faff", head: "#f0faff", dark: "#a0c0d0", text: "", price: 10, ability: "Нет" },
     imzul: { name: "Имзюлень", body: "#8b4513", head: "#ffd700", dark: "#5d2e0d", text: "Им", price: 50, ability: "Магнит (радиус +20%)" },
     egor: { name: "Егор", body: "#8b4513", head: "#8b4513", dark: "#5d2e0d", text: "Егор", price: 200, ability: "Броня (шанс 10% на блок)" },
-    bogdan: { name: "Богдан", body: "#333", head: "#333", dark: "#111", text: "Богдан", price: 200, ability: "Именинник (+3 🐟 и скорость)" },
+    bogdan: { name: "Богдан", body: "#333", head: "#333", dark: "#111", text: "Богдан", price: 200, ability: "Умелые ласты (+30% быстроты)" },
+    ghost: { name: "Призрак", body: "rgba(200,230,255,0.4)", head: "rgba(200,230,255,0.5)", dark: "rgba(150,180,210,0.3)", text: "👻", price: 350, ability: "Неосязаемость (15% шанс пройти сквозь косатку)" },
+    pirate: { name: "Пират", body: "#5c4033", head: "#2b1d0c", dark: "#1a1105", text: "🏴‍☠️", price: 400, ability: "Острый крюк (магнит +40%)" },
+    cyborg: { name: "Киборг", body: "#708090", head: "#c0c0c0", dark: "#4682b4", text: "🤖", price: 600, ability: "Энергощит (блокирует каждый 2-й удар)" },
     neon: { name: "Неон", body: "#ff00ff", head: "#00ffff", dark: "#333", text: "Neon", price: 500, ability: "Сияние (рыбки чаще)" },
     lava: { name: "Лава", body: "#ff4500", head: "#ff8c00", dark: "#800000", text: "Lava", price: 1000, ability: "Жар (враги медленнее)" },
+    ghost_gold: { name: "Золотой", body: "#ffd700", head: "#fff8dc", dark: "#b8860b", text: "👑", price: 1500, ability: "Золотая лихорадка (шанс на х2-х5 рыбок)" },
+    shadow: { name: "Тень", body: "#1a1a1a", head: "#0d0d0d", dark: "#000000", text: "🥷", price: 2000, ability: "Замедление времени (косатки на 25% медленнее)" },
     cosmo: { name: "Космос", body: "#4b0082", head: "#9370db", dark: "#000033", text: "Stars", price: 2500, ability: "Телепорт (быстрота)" },
     diamond: { name: "Алмаз", body: "#b9f2ff", head: "#e0ffff", dark: "#70d1e8", text: "💎", price: 5000, ability: "Удача (х2 рыбки)" },
     god: { name: "Бог Морей", body: "#00d2ff", head: "#ffffff", dark: "#008080", text: "GOD", price: 10000, ability: "Бессмертие (30% щит)" }
@@ -205,6 +161,9 @@ let particles = [];
 let boostActive = false;
 let boostTimer = 0;
 let lastScoreForBoost = 0;
+
+// Переменная для отслеживания нажатых клавиш на клавиатуре ПК
+let keys = {};
 
 function handleTopClick() {
     let now = Date.now();
@@ -280,6 +239,27 @@ window.addEventListener('touchmove', (e) => {
         seal.targetX = e.touches[0].clientX; 
     }
 }, {passive:false});
+
+// Поддержка движения мыши на ПК
+window.addEventListener('mousemove', (e) => {
+    if (!isShopOpen) {
+        seal.targetX = e.clientX;
+    }
+});
+
+// Клик мыши для активации звукового контекста на ПК
+window.addEventListener('click', () => {
+    Sfx.init();
+});
+
+// Поддержка клавиатуры ПК (Стрелки влево/вправо и A/D)
+window.addEventListener('keydown', (e) => {
+    keys[e.code] = true;
+});
+window.addEventListener('keyup', (e) => {
+    keys[e.code] = false;
+});
+
 resize();
 
 function spawnBubble(x, y) {
@@ -288,25 +268,9 @@ function spawnBubble(x, y) {
     }
 }
 
-function drawHolidayHat(x, y, hatColor) {
-    ctx.fillStyle = hatColor;
-    ctx.beginPath();
-    ctx.moveTo(x, y - 40);
-    ctx.lineTo(x - 12, y - 13);
-    ctx.lineTo(x + 12, y - 13);
-    ctx.fill();
-    ctx.fillStyle = '#fff';
-    ctx.beginPath();
-    ctx.ellipse(x, y - 13, 12, 4, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(x, y - 40, 4, 0, Math.PI * 2);
-    ctx.fill();
-}
-
 function resetGame() {
     score = 0; lives = 3 + purchasedExtraLives; isGameOver = false; isFalling = false; objects = []; particles = [];
-    boostActive = false; boostTimer = 0; lastScoreForBoost = 0; bdayTriggered = false; hasSeenBday = false;
+    boostActive = false; boostTimer = 0; lastScoreForBoost = 0; cyborgBlockCounter = 0;
     seal.y = height - 130; seal.angle = 0; seal.dmg = 0;
     document.getElementById('game-over').style.display = 'none';
     document.getElementById('boost-indicator').style.display = 'none';
@@ -314,14 +278,15 @@ function resetGame() {
     document.getElementById('lives-display').innerText = `❤️ ${lives}`;
 }
 
-const hatColors = ['#ff4444', '#2196f3', '#4caf50', '#9c27b0'];
-
 function spawn() {
-    if (isGameOver || isShopOpen || bdayTriggered) { setTimeout(spawn, 500); return; }
+    if (isGameOver || isShopOpen) { setTimeout(spawn, 500); return; }
     let chanceOrca = boostActive ? 0.1 : 0.35;
+    // Особенность скина Неон — рыбки спавнятся чаще
+    if (currentSkin === 'neon' && Math.random() < 0.15) {
+        chanceOrca = Math.max(0.05, chanceOrca - 0.1);
+    }
     const isOrca = Math.random() < chanceOrca;
-    const randomColor = hatColors[Math.floor(Math.random() * hatColors.length)];
-    objects.push({ x: Math.random() * (width - 80) + 40, y: -100, type: isOrca ? 'orca' : 'fish', speed: isOrca ? 4.5+(score*0.05) : 4, rot: Math.random() * Math.PI * 2, hatColor: randomColor });
+    objects.push({ x: Math.random() * (width - 80) + 40, y: -100, type: isOrca ? 'orca' : 'fish', speed: isOrca ? 4.5+(score*0.05) : 4, rot: Math.random() * Math.PI * 2 });
     let spawnDelay = boostActive ? 300 : Math.max(400, 1000 - score * 10);
     setTimeout(spawn, spawnDelay);
 }
@@ -338,45 +303,6 @@ function buyLife() {
         }
     }
 }
-
-window.playBdayAnimation = () => {
-    document.getElementById('shop-ui').style.display = 'none';
-    isShopOpen = false;
-    bdayTriggered = true;
-    
-    const eventDiv = document.getElementById('birthday-event');
-    const flame = document.getElementById('bday-flame');
-    const title = document.getElementById('bday-title');
-    const bogdan = document.getElementById('bday-bogdan');
-    const friends = document.querySelectorAll('.bday-friend');
-    
-    flame.style.display = 'block';
-    title.innerText = "С ДНЁМ РОЖДЕНИЯ, БОГДАН!";
-    bogdan.style.transform = "translateX(0) rotate(0deg)";
-    bogdan.classList.remove('jumping');
-    eventDiv.style.display = 'flex';
-    
-    friends.forEach(f => f.classList.add('jumping'));
-    
-    setTimeout(() => {
-        bogdan.style.transform = "translateX(35px) rotate(10deg)";
-    }, 1500);
-    
-    setTimeout(() => {
-        flame.style.display = 'none';
-        title.innerText = "УРААААА!!! 🎉";
-        bogdan.style.transform = "translateX(0) rotate(0deg)";
-        bogdan.classList.add('jumping');
-        Sfx.playBoost();
-    }, 2200);
-    
-    setTimeout(() => {
-        eventDiv.style.display = 'none';
-        bdayTriggered = false;
-        bogdan.classList.remove('jumping');
-        friends.forEach(f => f.classList.remove('jumping'));
-    }, 5000);
-};
 
 function drawSeal() {
     const s = skins[currentSkin];
@@ -415,19 +341,25 @@ function update() {
         if(p.alpha <= 0) particles.splice(i,1);
     }
 
-    if (!isGameOver && !isShopOpen && !bdayTriggered) {
+    if (!isGameOver && !isShopOpen) {
         seal.animTimer += 0.08;
-        let lerpFactor = currentSkin === 'bogdan' ? 0.20 : 0.15;
+
+        // Если нажаты клавиши на клавиатуре, смещаем цель движения влево или вправо
+        let keyboardSpeed = 15;
+        if (keys['ArrowLeft'] || keys['KeyA']) {
+            seal.targetX = Math.max(40, seal.targetX - keyboardSpeed);
+        }
+        if (keys['ArrowRight'] || keys['KeyD']) {
+            seal.targetX = Math.min(width - 40, seal.targetX + keyboardSpeed);
+        }
+
+        let lerpFactor = currentSkin === 'bogdan' ? 0.195 : 0.15;
         if(currentSkin === 'cosmo') lerpFactor = 0.22;
         seal.x += (seal.targetX - seal.x) * lerpFactor;
         seal.angle = (seal.targetX - seal.x) * 0.005;
 
-        if (score >= 100 && currentSkin === 'bogdan' && !hasSeenBday) {
-            hasSeenBday = true;
-            playBdayAnimation();
-        }
-
-        if (score > 0 && score % 20 === 0 && score !== lastScoreForBoost) {
+        // Буст активируется каждые 50 рыбок
+        if (score > 0 && score % 50 === 0 && score !== lastScoreForBoost) {
             boostActive = true; boostTimer = 300; lastScoreForBoost = score; Sfx.playBoost();
             document.getElementById('boost-indicator').style.display = 'block';
         }
@@ -435,7 +367,10 @@ function update() {
 
         for (let i = objects.length - 1; i >= 0; i--) {
             const o = objects[i];
-            let speedMod = 1; if(currentSkin === 'lava' && o.type === 'orca') speedMod = 0.85;
+            let speedMod = 1; 
+            if(currentSkin === 'lava' && o.type === 'orca') speedMod = 0.85;
+            if(currentSkin === 'shadow' && o.type === 'orca') speedMod = 0.75; // Способность Тени
+            
             o.y += o.speed * speedMod;
             if (o.type === 'fish') {
                 ctx.save(); ctx.translate(o.x, o.y); ctx.rotate(Math.sin(seal.animTimer + o.rot) * 0.2);
@@ -444,11 +379,21 @@ function update() {
                 ctx.strokeStyle = "rgba(255,255,255,0.4)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(8, -5, 10, 0.5, 2); ctx.stroke();
                 ctx.fillStyle = '#ffaa00'; ctx.beginPath(); ctx.moveTo(-18, 0); ctx.lineTo(-35, -15); ctx.lineTo(-35, 15); ctx.fill();
                 ctx.fillStyle = 'black'; ctx.beginPath(); ctx.arc(12, -3, 2, 0, Math.PI*2); ctx.fill();
-                if(currentSkin === 'bogdan') drawHolidayHat(5, 2, o.hatColor);
                 ctx.restore();
-                let grabRadius = currentSkin === 'imzul' ? 66 : 55;
+                
+                let grabRadius = 55;
+                if (currentSkin === 'imzul') grabRadius = 66;
+                if (currentSkin === 'pirate') grabRadius = 77; // Способность Пирата
+                
                 if (Math.hypot(o.x - seal.x, o.y - seal.y) < grabRadius) {
-                    let reward = currentSkin === 'bogdan' ? 3 : (currentSkin === 'diamond' ? 2 : 1);
+                    let reward = 1;
+                    if (currentSkin === 'diamond') {
+                        reward = 2;
+                    } else if (currentSkin === 'ghost_gold') {
+                        // Способность Золотого (случайно от 2 до 5 рыбок)
+                        reward = Math.floor(Math.random() * 4) + 2;
+                    }
+                    
                     score += reward; totalFish += reward; Sfx.playFish(); spawnBubble(o.x, o.y);
                     document.getElementById('score-display').innerText = `🐟 ${score}`;
                     if (score > highScore) { highScore = score; localStorage.setItem('highScore', highScore); document.getElementById('best-display').innerText = `🏆 ТОП: ${highScore}`; }
@@ -459,13 +404,29 @@ function update() {
                 ctx.beginPath(); ctx.ellipse(0, 0, 55, 28, 0, 0, Math.PI * 2); ctx.fill();
                 ctx.beginPath(); ctx.moveTo(0, -10); ctx.lineTo(-25, -60); ctx.lineTo(-40, 0); ctx.fill();
                 ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.ellipse(25, 8, 20, 10, 0, 0, Math.PI * 2); ctx.fill();
-                if(currentSkin === 'bogdan') drawHolidayHat(0, -16, o.hatColor);
                 ctx.restore();
                 if (Math.hypot(o.x - seal.x, o.y - seal.y) < 70) {
-                    let armorChance = currentSkin === 'god' ? 0.3 : (currentSkin === 'egor' ? 0.1 : 0);
-                    if(Math.random() < armorChance) { seal.dmg = 15; } else {
-                        lives--; seal.dmg = 30; Sfx.playHit();
-                        document.getElementById('lives-display').innerText = `❤️ ${lives}`;
+                    let passThrough = currentSkin === 'ghost' && Math.random() < 0.15; // Способность Призрака
+                    
+                    if (passThrough) {
+                        seal.dmg = 10; // Небольшое мигание в знак прохода сквозь текстуру
+                    } else {
+                        let armorChance = currentSkin === 'god' ? 0.3 : (currentSkin === 'egor' ? 0.1 : 0);
+                        let isBlockedByCyborg = false;
+                        
+                        if (currentSkin === 'cyborg') {
+                            cyborgBlockCounter++;
+                            if (cyborgBlockCounter % 2 === 0) {
+                                isBlockedByCyborg = true; // Блокирует каждый второй удар
+                            }
+                        }
+                        
+                        if (Math.random() < armorChance || isBlockedByCyborg) { 
+                            seal.dmg = 15; 
+                        } else {
+                            lives--; seal.dmg = 30; Sfx.playHit();
+                            document.getElementById('lives-display').innerText = `❤️ ${lives}`;
+                        }
                     }
                     objects.splice(i, 1);
                     if (lives <= 0) { isGameOver = true; isFalling = true; localStorage.setItem('totalFish', totalFish); }
