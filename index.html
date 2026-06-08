@@ -165,6 +165,11 @@ let lastScoreForBoost = 0;
 // Переменная для отслеживания нажатых клавиш на клавиатуре ПК
 let keys = {};
 
+// Массив декоративных водорослей для обновления фона
+let seaweeds = [];
+// Массив фонового планктона
+let planktons = [];
+
 function handleTopClick() {
     let now = Date.now();
     if (now - lastClickTime > 1000) topClicks = 0;
@@ -227,6 +232,35 @@ function resize() {
     seal.x = seal.targetX = width / 2;
     seal.y = height - 130;
     document.getElementById('best-display').innerText = `🏆 ТОП: ${highScore}`;
+    
+    // Инициализация водорослей разной глубины под новый размер экрана
+    seaweeds = [];
+    for(let i = 0; i < 12; i++) {
+        let depth = Math.random(); // Параметр глубины для создания плановости
+        seaweeds.push({
+            x: Math.random() * width,
+            y: height + 20,
+            height: Math.random() * 160 + 90,
+            waveSpeed: Math.random() * 0.015 + 0.01,
+            offset: Math.random() * 100,
+            width: Math.random() * 15 + 15,
+            // Вычисляем цвет заранее, чтобы не перегружать цикл отрисовки
+            color: `rgba(0, ${Math.floor(depth * 50 + 40)}, ${Math.floor(depth * 30 + 30)}, ${depth * 0.3 + 0.15})`
+        });
+    }
+
+    // Первоначальное заполнение экрана планктоном
+    planktons = [];
+    for(let i = 0; i < 20; i++) {
+        planktons.push({
+            x: Math.random() * width,
+            y: Math.random() * height,
+            speed: Math.random() * 0.5 + 0.2,
+            size: Math.random() * 2 + 1,
+            pulseOffset: Math.random() * Math.PI,
+            color: Math.random() < 0.5 ? 'rgba(0, 210, 255, 0.3)' : 'rgba(0, 255, 180, 0.25)'
+        });
+    }
 }
 window.addEventListener('resize', resize);
 window.addEventListener('touchstart', (e) => { 
@@ -263,8 +297,8 @@ window.addEventListener('keyup', (e) => {
 resize();
 
 function spawnBubble(x, y) {
-    for(let i=0; i<8; i++) {
-        particles.push({ x: x, y: y, vx: (Math.random()-0.5)*6, vy: -Math.random()*5-2, r: Math.random()*5+2, alpha: 1 });
+    for(let i=0; i<6; i++) {
+        particles.push({ x: x, y: y, vx: (Math.random()-0.5)*5, vy: -Math.random()*4-2, r: Math.random()*4+2, alpha: 1 });
     }
 }
 
@@ -285,8 +319,23 @@ function spawn() {
     if (currentSkin === 'neon' && Math.random() < 0.15) {
         chanceOrca = Math.max(0.05, chanceOrca - 0.1);
     }
-    const isOrca = Math.random() < chanceOrca;
-    objects.push({ x: Math.random() * (width - 80) + 40, y: -100, type: isOrca ? 'orca' : 'fish', speed: isOrca ? 4.5+(score*0.05) : 4, rot: Math.random() * Math.PI * 2 });
+    
+    const rand = Math.random();
+    if (rand < chanceOrca) {
+        // Выбираем тип косатки: обычная или новая агрессивная (с автонаводкой)
+        const isAngry = Math.random() < 0.40;
+        objects.push({
+            x: Math.random() * (width - 80) + 40,
+            y: -100,
+            type: isAngry ? 'angry_orca' : 'orca',
+            speed: 4.5 + (score * 0.05),
+            rot: Math.random() * Math.PI * 2,
+            angle: Math.PI / 2 // направление движения вниз по умолчанию
+        });
+    } else {
+        objects.push({ x: Math.random() * (width - 80) + 40, y: -100, type: 'fish', speed: 4, rot: Math.random() * Math.PI * 2 });
+    }
+
     let spawnDelay = boostActive ? 300 : Math.max(400, 1000 - score * 10);
     setTimeout(spawn, spawnDelay);
 }
@@ -335,8 +384,48 @@ function update() {
     g.addColorStop(1, '#001e3c');
     ctx.fillStyle = g; ctx.fillRect(0,0,width,height);
 
+    // Рисование заднего фона: Красивые многослойные водоросли
+    ctx.save();
+    for(let i = 0; i < seaweeds.length; i++) {
+        let sw = seaweeds[i];
+        let wave = Math.sin(seal.animTimer * 1.5 + sw.offset) * 25;
+        ctx.fillStyle = sw.color;
+        ctx.beginPath();
+        ctx.moveTo(sw.x, sw.y);
+        ctx.quadraticCurveTo(sw.x + wave, sw.y - sw.height / 2, sw.x + wave * 0.7, sw.y - sw.height);
+        ctx.quadraticCurveTo(sw.x + wave + sw.width, sw.y - sw.height / 2, sw.x + sw.width, sw.y);
+        ctx.closePath();
+        ctx.fill();
+    }
+    ctx.restore();
+
+    // Рисование и обновление светящегося планктона (БЕЗ shadowBlur для идеальной плавности)
+    ctx.save();
+    for(let i = 0; i < planktons.length; i++) {
+        let pk = planktons[i];
+        pk.y -= pk.speed; // Медленно плывет вверх
+        pk.x += Math.sin(seal.animTimer * 0.5 + pk.pulseOffset) * 0.2;
+        
+        if (pk.y < -10) {
+            pk.y = height + 10;
+            pk.x = Math.random() * width;
+        }
+        
+        let alphaPulse = (Math.sin(seal.animTimer + pk.pulseOffset) * 0.3 + 0.7);
+        ctx.fillStyle = pk.color;
+        ctx.beginPath();
+        ctx.arc(pk.x, pk.y, pk.size * alphaPulse, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    ctx.restore();
+
+    // Случайный фоновый спавн пузырей океана
+    if(Math.random() < 0.03) {
+        particles.push({ x: Math.random() * width, y: height + 10, vx: (Math.random() - 0.5) * 2, vy: -Math.random() * 2 - 1, r: Math.random() * 4 + 1, alpha: 0.7 });
+    }
+
     for(let i=particles.length-1; i>=0; i--) {
-        let p = particles[i]; p.x += p.vx; p.y += p.vy; p.alpha -= 0.02;
+        let p = particles[i]; p.x += p.vx; p.y += p.vy; p.alpha -= 0.01;
         ctx.fillStyle = `rgba(255,255,255,${p.alpha})`; ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2); ctx.fill();
         if(p.alpha <= 0) particles.splice(i,1);
     }
@@ -368,10 +457,34 @@ function update() {
         for (let i = objects.length - 1; i >= 0; i--) {
             const o = objects[i];
             let speedMod = 1; 
-            if(currentSkin === 'lava' && o.type === 'orca') speedMod = 0.85;
-            if(currentSkin === 'shadow' && o.type === 'orca') speedMod = 0.75; // Способность Тени
+            if((o.type === 'orca' || o.type === 'angry_orca') && currentSkin === 'lava') speedMod = 0.85;
+            if((o.type === 'orca' || o.type === 'angry_orca') && currentSkin === 'shadow') speedMod = 0.75; // Способность Тени
             
-            o.y += o.speed * speedMod;
+            // Логика движения для разных типов объектов
+            if (o.type === 'angry_orca') {
+                // Автонаведение работает только если косатка видна на экране (не ушла под низ)
+                const isVisible = o.y < height;
+                if (isVisible) {
+                    // Вычисляем угол к тюленю
+                    let targetAngle = Math.atan2(seal.y - o.y, seal.x - o.x);
+                    
+                    // Поворачивает медленно из-за плохой маневренности (неповоротливая)
+                    let angleDiff = targetAngle - o.angle;
+                    // Нормализуем разницу углов
+                    angleDiff = Math.atan2(Math.sin(angleDiff), Math.cos(angleDiff));
+                    
+                    let rotationSpeed = 0.015; // Медленный разворот
+                    o.angle += Math.max(-rotationSpeed, Math.min(rotationSpeed, angleDiff));
+                }
+                
+                // Двигаемся по вектору своего текущего угла
+                o.x += Math.cos(o.angle) * o.speed * speedMod;
+                o.y += Math.sin(o.angle) * o.speed * speedMod;
+            } else {
+                // Обычные рыбки и обычные косатки плывут строго вниз
+                o.y += o.speed * speedMod;
+            }
+
             if (o.type === 'fish') {
                 ctx.save(); ctx.translate(o.x, o.y); ctx.rotate(Math.sin(seal.animTimer + o.rot) * 0.2);
                 let fishGrad = ctx.createRadialGradient(0,0,5,0,0,22); fishGrad.addColorStop(0, '#fff3a0'); fishGrad.addColorStop(1, '#ffcc00');
@@ -399,13 +512,39 @@ function update() {
                     if (score > highScore) { highScore = score; localStorage.setItem('highScore', highScore); document.getElementById('best-display').innerText = `🏆 ТОП: ${highScore}`; }
                     objects.splice(i, 1);
                 }
-            } else {
-                ctx.save(); ctx.translate(o.x, o.y); ctx.scale(1.4, 1.4); ctx.fillStyle = '#111';
+            } else if (o.type === 'orca' || o.type === 'angry_orca') {
+                // Отрисовка косаток
+                ctx.save(); 
+                ctx.translate(o.x, o.y);
+                if (o.type === 'angry_orca') {
+                    ctx.rotate(o.angle - Math.PI / 2); // Поворачиваем по направлению движения
+                }
+                ctx.scale(1.4, 1.4); 
+                
+                // Агрессивная косатка имеет темный оттенок кожи
+                ctx.fillStyle = o.type === 'angry_orca' ? '#1c0d12' : '#111';
                 ctx.beginPath(); ctx.ellipse(0, 0, 55, 28, 0, 0, Math.PI * 2); ctx.fill();
-                ctx.beginPath(); ctx.moveTo(0, -10); ctx.lineTo(-25, -60); ctx.lineTo(-40, 0); ctx.fill();
+                
+                // Отрисовка верхнего плавника
+                if (o.type === 'angry_orca') {
+                    // Покоцанный плавник для агрессивной косатки
+                    ctx.beginPath(); ctx.moveTo(0, -10); ctx.lineTo(-12, -40); ctx.lineTo(-18, -38); ctx.lineTo(-20, -50); ctx.lineTo(-40, 0); ctx.fill();
+                } else {
+                    // Обычный целый плавник
+                    ctx.beginPath(); ctx.moveTo(0, -10); ctx.lineTo(-25, -60); ctx.lineTo(-40, 0); ctx.fill();
+                }
+                
+                // Белое пятно на брюхе
                 ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.ellipse(25, 8, 20, 10, 0, 0, Math.PI * 2); ctx.fill();
                 ctx.restore();
-                if (Math.hypot(o.x - seal.x, o.y - seal.y) < 70) {
+
+                // Нападение засчитывается, только если косатка на экране (если внизу экрана, нападать не может)
+                let canAttack = true;
+                if (o.type === 'angry_orca' && o.y >= height) {
+                    canAttack = false;
+                }
+
+                if (canAttack && Math.hypot(o.x - seal.x, o.y - seal.y) < 70) {
                     let passThrough = currentSkin === 'ghost' && Math.random() < 0.15; // Способность Призрака
                     
                     if (passThrough) {
@@ -432,7 +571,8 @@ function update() {
                     if (lives <= 0) { isGameOver = true; isFalling = true; localStorage.setItem('totalFish', totalFish); }
                 }
             }
-            if (o.y > height + 100) objects.splice(i, 1);
+            // Удаляем объект, если он уплыл далеко вниз за экран
+            if (o.y > height + 150) objects.splice(i, 1);
         }
     } else if (isFalling) {
         seal.y += 20; seal.angle += 0.2;
