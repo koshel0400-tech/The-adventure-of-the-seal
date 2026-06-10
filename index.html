@@ -4,10 +4,51 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Seal Hero</title>
-<link rel="manifest" href="manifest.json">
+    <link rel="manifest" href="manifest.json">
     <style>
         body { margin: 0; overflow: hidden; background: #001e3c; touch-action: none; font-family: 'Arial Black', sans-serif; }
         canvas { display: block; }
+
+        /* СТИЛИ ДЛЯ ОКНА АВТОРИЗАЦИИ / АККАУНТА */
+        #auth-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 10, 21, 0.85);
+            display: none; justify-content: center; align-items: center; z-index: 100;
+            backdrop-filter: blur(5px);
+        }
+        .auth-container {
+            position: relative;
+            background: linear-gradient(135deg, rgba(0, 40, 80, 0.95) 0%, rgba(0, 10, 20, 0.9) 100%);
+            padding: 35px 25px; border-radius: 24px; border: 3px solid #00d2ff;
+            box-shadow: 0 0 30px rgba(0,210,255,0.4); width: 320px; text-align: center; color: white;
+            box-sizing: border-box;
+        }
+        .auth-container h2 { margin-top: 0; color: #ffcc00; font-size: 28px; text-shadow: 0 0 10px rgba(255,204,0,0.5); }
+        .auth-container p { font-size: 14px; color: #a0c0d0; font-family: Arial, sans-serif; line-height: 1.4; }
+        .auth-input {
+            width: 100%; padding: 14px; margin: 15px 0; border: 2px solid #00d2ff;
+            border-radius: 14px; background: #001428; color: white; font-size: 16px;
+            box-sizing: border-box; text-align: center; font-family: Arial, sans-serif;
+        }
+        .auth-input:focus { outline: none; box-shadow: 0 0 10px #00d2ff; }
+        .auth-btn {
+            width: 100%; padding: 14px; background: linear-gradient(#FFD700, #FFA500);
+            color: black; border: none; border-radius: 16px; font-weight: bold; font-size: 16px;
+            cursor: pointer; box-shadow: 0 4px 15px rgba(255,215,0,0.3);
+        }
+        .auth-btn:disabled { background: #555; color: #aaa; box-shadow: none; cursor: not-allowed; }
+        .auth-error { color: #ff4444; font-size: 13px; font-family: Arial, sans-serif; margin-top: -10px; margin-bottom: 10px; font-weight: bold; }
+        
+        /* Крестик закрытия окошка */
+        .close-auth-btn {
+            position: absolute; top: 12px; right: 18px; color: #a0c0d0; font-size: 28px;
+            cursor: pointer; font-family: 'Arial', sans-serif; font-weight: bold; transition: 0.2s;
+            user-select: none; -webkit-user-select: none;
+        }
+        .close-auth-btn:hover { color: #ff4444; }
+
+        /* Класс для поочередного скрытия шагов */
+        .hidden { display: none !important; }
 
         /* Стиль модельки тюленя для HTML */
         .seal-model { position: relative; width: 60px; height: 40px; }
@@ -37,6 +78,13 @@
         }
         @keyframes flash { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
 
+        /* Кнопки управления верхнего уровня */
+        #btn-account {
+            position: absolute; top: 20px; right: 180px; pointer-events: auto;
+            background: linear-gradient(#00d2ff, #0066cc); color: #fff; padding: 15px 25px;
+            border-radius: 20px; border: 3px solid #fff; font-weight: 900; cursor: pointer;
+            box-shadow: 0 5px 15px rgba(0,210,255,0.4); font-size: 16px;
+        }
         #btn-shop {
             position: absolute; top: 20px; right: 20px; pointer-events: auto;
             background: linear-gradient(#FFD700, #FFA500); color: #000; padding: 15px 30px;
@@ -87,8 +135,39 @@
         }
         .restart-btn { background: #00d2ff; color: #fff; padding: 20px 60px; border-radius: 30px; border: none; font-weight: bold; font-size: 26px; margin-top: 25px; box-shadow: 0 0 20px rgba(0,210,255,0.6); }
     </style>
+
+    <!-- ИНИЦИАЛИЗАЦИЯ EMAILJS -->
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+    <script type="text/javascript">
+        (function() {
+            // ВСТАВЛЕН ВАШ КЛЮЧ ИЗ ЛИЧНОГО КАБИНЕТА EMAILJS
+            emailjs.init("sOJzfGsV2tIPSxlS-");
+        })();
+    </script>
 </head>
 <body>
+
+<!-- ОКНО АВТОРИЗАЦИИ / АККАУНТА (НЕОБЯЗАТЕЛЬНОЕ, С КРЕСТИКОМ) -->
+<div id="auth-overlay">
+    <!-- Шаг 1: Ввод почты -->
+    <div id="email-step" class="auth-container">
+        <div class="close-auth-btn" onclick="closeAuthModal()">&times;</div>
+        <h2>Seal Hero 🦭</h2>
+        <p>Введите ваш Email, чтобы получить секретный passcode для входа в игру:</p>
+        <input type="email" id="user-email" class="auth-input" placeholder="example@mail.com" required>
+        <button id="send-btn" class="auth-btn" onclick="sendAuthCode()">Получить код</button>
+    </div>
+
+    <!-- Шаг 2: Ввод кода подтверждения (По очереди после Шага 1) -->
+    <div id="code-step" class="auth-container hidden">
+        <div class="close-auth-btn" onclick="closeAuthModal()">&times;</div>
+        <h2>Проверка кода 🦭</h2>
+        <p>Мы отправили секретный passcode на вашу почту. Введите его для авторизации:</p>
+        <input type="text" id="auth-code" class="auth-input" placeholder="Введите код" maxlength="4">
+        <div id="auth-error-msg" class="auth-error"></div>
+        <button class="auth-btn" onclick="verifyAuthCode()">Войти в игру</button>
+    </div>
+</div>
 
 <div id="ui">
     <div class="stats-bar">
@@ -97,6 +176,7 @@
         <div id="lives-display" class="stat">❤️ 3</div>
         <div id="boost-indicator">BOOST! ⚡</div>
     </div>
+    <button id="btn-account" onclick="openAuthModal()">АККАУНТ</button>
     <button id="btn-shop">МАГАЗИН</button>
 </div>
 
@@ -121,6 +201,73 @@
 <canvas id="gameCanvas"></canvas>
 
 <script>
+// ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ АВТОРИЗАЦИИ
+let generatedPasscode = null;
+let isAuthorized = localStorage.getItem('isAuthorized') === 'true';
+
+function openAuthModal() {
+    isShopOpen = true; // Ставим игру на паузу, пока открыто окно
+    document.getElementById('auth-overlay').style.display = 'flex';
+    document.getElementById('email-step').classList.remove('hidden');
+    document.getElementById('code-step').classList.add('hidden');
+    document.getElementById('auth-error-msg').innerText = '';
+}
+
+function closeAuthModal() {
+    isShopOpen = false; // Возвращаем игру в активное состояние
+    document.getElementById('auth-overlay').style.display = 'none';
+}
+
+function sendAuthCode() {
+    const emailInput = document.getElementById('user-email');
+    const email = emailInput.value.trim();
+    const sendBtn = document.getElementById('send-btn');
+    
+    if (email === "" || !email.includes("@")) {
+        alert("Пожалуйста, введите корректный Email!");
+        return;
+    }
+
+    sendBtn.disabled = true;
+    sendBtn.innerText = "Отправка...";
+
+    generatedPasscode = Math.floor(1000 + Math.random() * 9000).toString();
+
+    const templateParams = {
+        to_email: email,       
+        passcode: generatedPasscode
+    };
+
+    emailjs.send("service_xond4or", "template_okbl07i", templateParams)
+        .then(function(response) {
+            console.log('Код отправлен!', response.status, response.text);
+            document.getElementById('email-step').classList.add('hidden');
+            document.getElementById('code-step').classList.remove('hidden');
+            sendBtn.disabled = false;
+            sendBtn.innerText = "Получить код";
+        }, function(error) {
+            console.error('Ошибка EmailJS:', error);
+            alert('Ошибка при отправке! Проверьте интернет-соединение.');
+            sendBtn.disabled = false;
+            sendBtn.innerText = "Получить код";
+        });
+}
+
+function verifyAuthCode() {
+    const userCode = document.getElementById('auth-code').value.trim();
+    const errorMsg = document.getElementById('auth-error-msg');
+
+    if (userCode === generatedPasscode) {
+        isAuthorized = true;
+        localStorage.setItem('isAuthorized', 'true');
+        alert("Авторизация прошла успешно! 🎉");
+        closeAuthModal();
+    } else {
+        errorMsg.innerText = "Неверный passcode! Попробуйте ещё раз.";
+    }
+}
+
+// ИСХОДНЫЙ КОД ИГРЫ С КРАСИВЫМ ФОНОМ И АГРЕССИВНЫМИ КОСАТКАМИ
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
@@ -132,7 +279,6 @@ let purchasedExtraLives = parseInt(localStorage.getItem('extraLives')) || 0;
 let topClicks = 0;
 let lastClickTime = 0;
 
-// Счетчик заблокированных ударов для киборга
 let cyborgBlockCounter = 0;
 
 const skins = {
@@ -162,12 +308,8 @@ let boostActive = false;
 let boostTimer = 0;
 let lastScoreForBoost = 0;
 
-// Переменная для отслеживания нажатых клавиш на клавиатуре ПК
 let keys = {};
-
-// Массив декоративных водорослей для обновления фона
 let seaweeds = [];
-// Массив фонового планктона
 let planktons = [];
 
 function handleTopClick() {
@@ -233,10 +375,9 @@ function resize() {
     seal.y = height - 130;
     document.getElementById('best-display').innerText = `🏆 ТОП: ${highScore}`;
     
-    // Инициализация водорослей разной глубины под новый размер экрана
     seaweeds = [];
     for(let i = 0; i < 12; i++) {
-        let depth = Math.random(); // Параметр глубины для создания плановости
+        let depth = Math.random();
         seaweeds.push({
             x: Math.random() * width,
             y: height + 20,
@@ -244,12 +385,10 @@ function resize() {
             waveSpeed: Math.random() * 0.015 + 0.01,
             offset: Math.random() * 100,
             width: Math.random() * 15 + 15,
-            // Вычисляем цвет заранее, чтобы не перегружать цикл отрисовки
             color: `rgba(0, ${Math.floor(depth * 50 + 40)}, ${Math.floor(depth * 30 + 30)}, ${depth * 0.3 + 0.15})`
         });
     }
 
-    // Первоначальное заполнение экрана планктоном
     planktons = [];
     for(let i = 0; i < 20; i++) {
         planktons.push({
@@ -262,6 +401,7 @@ function resize() {
         });
     }
 }
+
 window.addEventListener('resize', resize);
 window.addEventListener('touchstart', (e) => { 
     Sfx.init(); 
@@ -274,25 +414,15 @@ window.addEventListener('touchmove', (e) => {
     }
 }, {passive:false});
 
-// Поддержка движения мыши на ПК
 window.addEventListener('mousemove', (e) => {
     if (!isShopOpen) {
         seal.targetX = e.clientX;
     }
 });
 
-// Клик мыши для активации звукового контекста на ПК
-window.addEventListener('click', () => {
-    Sfx.init();
-});
-
-// Поддержка клавиатуры ПК (Стрелки влево/вправо и A/D)
-window.addEventListener('keydown', (e) => {
-    keys[e.code] = true;
-});
-window.addEventListener('keyup', (e) => {
-    keys[e.code] = false;
-});
+window.addEventListener('click', () => { Sfx.init(); });
+window.addEventListener('keydown', (e) => { keys[e.code] = true; });
+window.addEventListener('keyup', (e) => { keys[e.code] = false; });
 
 resize();
 
@@ -315,14 +445,12 @@ function resetGame() {
 function spawn() {
     if (isGameOver || isShopOpen) { setTimeout(spawn, 500); return; }
     let chanceOrca = boostActive ? 0.1 : 0.35;
-    // Особенность скина Неон — рыбки спавнятся чаще
     if (currentSkin === 'neon' && Math.random() < 0.15) {
         chanceOrca = Math.max(0.05, chanceOrca - 0.1);
     }
     
     const rand = Math.random();
     if (rand < chanceOrca) {
-        // Выбираем тип косатки: обычная или новая агрессивная (с автонаводкой)
         const isAngry = Math.random() < 0.40;
         objects.push({
             x: Math.random() * (width - 80) + 40,
@@ -330,7 +458,7 @@ function spawn() {
             type: isAngry ? 'angry_orca' : 'orca',
             speed: 4.5 + (score * 0.05),
             rot: Math.random() * Math.PI * 2,
-            angle: Math.PI / 2 // направление движения вниз по умолчанию
+            angle: Math.PI / 2
         });
     } else {
         objects.push({ x: Math.random() * (width - 80) + 40, y: -100, type: 'fish', speed: 4, rot: Math.random() * Math.PI * 2 });
@@ -384,7 +512,6 @@ function update() {
     g.addColorStop(1, '#001e3c');
     ctx.fillStyle = g; ctx.fillRect(0,0,width,height);
 
-    // Рисование заднего фона: Красивые многослойные водоросли
     ctx.save();
     for(let i = 0; i < seaweeds.length; i++) {
         let sw = seaweeds[i];
@@ -399,11 +526,10 @@ function update() {
     }
     ctx.restore();
 
-    // Рисование и обновление светящегося планктона (БЕЗ shadowBlur для идеальной плавности)
     ctx.save();
     for(let i = 0; i < planktons.length; i++) {
         let pk = planktons[i];
-        pk.y -= pk.speed; // Медленно плывет вверх
+        pk.y -= pk.speed;
         pk.x += Math.sin(seal.animTimer * 0.5 + pk.pulseOffset) * 0.2;
         
         if (pk.y < -10) {
@@ -419,7 +545,6 @@ function update() {
     }
     ctx.restore();
 
-    // Случайный фоновый спавн пузырей океана
     if(Math.random() < 0.03) {
         particles.push({ x: Math.random() * width, y: height + 10, vx: (Math.random() - 0.5) * 2, vy: -Math.random() * 2 - 1, r: Math.random() * 4 + 1, alpha: 0.7 });
     }
@@ -433,21 +558,15 @@ function update() {
     if (!isGameOver && !isShopOpen) {
         seal.animTimer += 0.08;
 
-        // Если нажаты клавиши на клавиатуре, смещаем цель движения влево или вправо
         let keyboardSpeed = 15;
-        if (keys['ArrowLeft'] || keys['KeyA']) {
-            seal.targetX = Math.max(40, seal.targetX - keyboardSpeed);
-        }
-        if (keys['ArrowRight'] || keys['KeyD']) {
-            seal.targetX = Math.min(width - 40, seal.targetX + keyboardSpeed);
-        }
+        if (keys['ArrowLeft'] || keys['KeyA']) { seal.targetX = Math.max(40, seal.targetX - keyboardSpeed); }
+        if (keys['ArrowRight'] || keys['KeyD']) { seal.targetX = Math.min(width - 40, seal.targetX + keyboardSpeed); }
 
         let lerpFactor = currentSkin === 'bogdan' ? 0.195 : 0.15;
         if(currentSkin === 'cosmo') lerpFactor = 0.22;
         seal.x += (seal.targetX - seal.x) * lerpFactor;
         seal.angle = (seal.targetX - seal.x) * 0.005;
 
-        // Буст активируется каждые 50 рыбок
         if (score > 0 && score % 50 === 0 && score !== lastScoreForBoost) {
             boostActive = true; boostTimer = 300; lastScoreForBoost = score; Sfx.playBoost();
             document.getElementById('boost-indicator').style.display = 'block';
@@ -458,30 +577,20 @@ function update() {
             const o = objects[i];
             let speedMod = 1; 
             if((o.type === 'orca' || o.type === 'angry_orca') && currentSkin === 'lava') speedMod = 0.85;
-            if((o.type === 'orca' || o.type === 'angry_orca') && currentSkin === 'shadow') speedMod = 0.75; // Способность Тени
+            if((o.type === 'orca' || o.type === 'angry_orca') && currentSkin === 'shadow') speedMod = 0.75;
             
-            // Логика движения для разных типов объектов
             if (o.type === 'angry_orca') {
-                // Автонаведение работает только если косатка видна на экране (не ушла под низ)
                 const isVisible = o.y < height;
                 if (isVisible) {
-                    // Вычисляем угол к тюленю
                     let targetAngle = Math.atan2(seal.y - o.y, seal.x - o.x);
-                    
-                    // Поворачивает медленно из-за плохой маневренности (неповоротливая)
                     let angleDiff = targetAngle - o.angle;
-                    // Нормализуем разницу углов
                     angleDiff = Math.atan2(Math.sin(angleDiff), Math.cos(angleDiff));
-                    
-                    let rotationSpeed = 0.015; // Медленный разворот
+                    let rotationSpeed = 0.015;
                     o.angle += Math.max(-rotationSpeed, Math.min(rotationSpeed, angleDiff));
                 }
-                
-                // Двигаемся по вектору своего текущего угла
                 o.x += Math.cos(o.angle) * o.speed * speedMod;
                 o.y += Math.sin(o.angle) * o.speed * speedMod;
             } else {
-                // Обычные рыбки и обычные косатки плывут строго вниз
                 o.y += o.speed * speedMod;
             }
 
@@ -496,16 +605,12 @@ function update() {
                 
                 let grabRadius = 55;
                 if (currentSkin === 'imzul') grabRadius = 66;
-                if (currentSkin === 'pirate') grabRadius = 77; // Способность Пирата
+                if (currentSkin === 'pirate') grabRadius = 77;
                 
                 if (Math.hypot(o.x - seal.x, o.y - seal.y) < grabRadius) {
                     let reward = 1;
-                    if (currentSkin === 'diamond') {
-                        reward = 2;
-                    } else if (currentSkin === 'ghost_gold') {
-                        // Способность Золотого (случайно от 2 до 5 рыбок)
-                        reward = Math.floor(Math.random() * 4) + 2;
-                    }
+                    if (currentSkin === 'diamond') { reward = 2; } 
+                    else if (currentSkin === 'ghost_gold') { reward = Math.floor(Math.random() * 4) + 2; }
                     
                     score += reward; totalFish += reward; Sfx.playFish(); spawnBubble(o.x, o.y);
                     document.getElementById('score-display').innerText = `🐟 ${score}`;
@@ -513,56 +618,36 @@ function update() {
                     objects.splice(i, 1);
                 }
             } else if (o.type === 'orca' || o.type === 'angry_orca') {
-                // Отрисовка косаток
                 ctx.save(); 
                 ctx.translate(o.x, o.y);
-                if (o.type === 'angry_orca') {
-                    ctx.rotate(o.angle - Math.PI / 2); // Поворачиваем по направлению движения
-                }
+                if (o.type === 'angry_orca') { ctx.rotate(o.angle - Math.PI / 2); }
                 ctx.scale(1.4, 1.4); 
-                
-                // Агрессивная косатка имеет темный оттенок кожи
                 ctx.fillStyle = o.type === 'angry_orca' ? '#1c0d12' : '#111';
                 ctx.beginPath(); ctx.ellipse(0, 0, 55, 28, 0, 0, Math.PI * 2); ctx.fill();
                 
-                // Отрисовка верхнего плавника
                 if (o.type === 'angry_orca') {
-                    // Покоцанный плавник для агрессивной косатки
                     ctx.beginPath(); ctx.moveTo(0, -10); ctx.lineTo(-12, -40); ctx.lineTo(-18, -38); ctx.lineTo(-20, -50); ctx.lineTo(-40, 0); ctx.fill();
                 } else {
-                    // Обычный целый плавник
                     ctx.beginPath(); ctx.moveTo(0, -10); ctx.lineTo(-25, -60); ctx.lineTo(-40, 0); ctx.fill();
                 }
-                
-                // Белое пятно на брюхе
                 ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.ellipse(25, 8, 20, 10, 0, 0, Math.PI * 2); ctx.fill();
                 ctx.restore();
 
-                // Нападение засчитывается, только если косатка на экране (если внизу экрана, нападать не может)
                 let canAttack = true;
-                if (o.type === 'angry_orca' && o.y >= height) {
-                    canAttack = false;
-                }
+                if (o.type === 'angry_orca' && o.y >= height) { canAttack = false; }
 
                 if (canAttack && Math.hypot(o.x - seal.x, o.y - seal.y) < 70) {
-                    let passThrough = currentSkin === 'ghost' && Math.random() < 0.15; // Способность Призрака
-                    
-                    if (passThrough) {
-                        seal.dmg = 10; // Небольшое мигание в знак прохода сквозь текстуру
-                    } else {
+                    let passThrough = currentSkin === 'ghost' && Math.random() < 0.15;
+                    if (passThrough) { seal.dmg = 10; } 
+                    else {
                         let armorChance = currentSkin === 'god' ? 0.3 : (currentSkin === 'egor' ? 0.1 : 0);
                         let isBlockedByCyborg = false;
-                        
                         if (currentSkin === 'cyborg') {
                             cyborgBlockCounter++;
-                            if (cyborgBlockCounter % 2 === 0) {
-                                isBlockedByCyborg = true; // Блокирует каждый второй удар
-                            }
+                            if (cyborgBlockCounter % 2 === 0) isBlockedByCyborg = true;
                         }
-                        
-                        if (Math.random() < armorChance || isBlockedByCyborg) { 
-                            seal.dmg = 15; 
-                        } else {
+                        if (Math.random() < armorChance || isBlockedByCyborg) { seal.dmg = 15; } 
+                        else {
                             lives--; seal.dmg = 30; Sfx.playHit();
                             document.getElementById('lives-display').innerText = `❤️ ${lives}`;
                         }
@@ -571,7 +656,6 @@ function update() {
                     if (lives <= 0) { isGameOver = true; isFalling = true; localStorage.setItem('totalFish', totalFish); }
                 }
             }
-            // Удаляем объект, если он уплыл далеко вниз за экран
             if (o.y > height + 150) objects.splice(i, 1);
         }
     } else if (isFalling) {
